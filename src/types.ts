@@ -51,7 +51,7 @@ export interface Token {
 export type Screen = 'auth' | 'main' | 'typing';
 
 export const LANGUAGES = [
-  'Python', 'Rust', 'TypeScript', 'Go', 'C++', 'Zig'
+  'Python', 'Rust', 'TypeScript', 'Go', 'C', 'C++', 'Zig'
 ] as const;
 
 export type Language = typeof LANGUAGES[number];
