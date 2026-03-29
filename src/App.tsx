@@ -10,12 +10,9 @@ import {
   getCurrentUser,
   getProfiles,
   getSnippets,
-  getHistory,
   getStats,
-  login as apiLogin,
   logout as apiLogout,
 } from './api';
-import { LANGUAGES } from './types';
 
 type View = 'auth' | 'main' | 'typing';
 
@@ -34,11 +31,10 @@ export default function App() {
   // Load initial data
   const loadData = useCallback(async () => {
     try {
-      const [userData, profilesData, snippetsData, historyData, statsData] = await Promise.all([
+      const [userData, profilesData, snippetsData, statsData] = await Promise.all([
         getCurrentUser(),
         getProfiles(),
         getSnippets(),
-        getHistory(),
         getStats(),
       ]);
       setUser(userData);
@@ -71,7 +67,7 @@ export default function App() {
     }
   }, []);
 
-  const handleLogin = useCallback(async (token: string) => {
+  const handleLogin = useCallback(async () => {
     await loadData();
   }, [loadData]);
 

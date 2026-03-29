@@ -65,7 +65,7 @@ export function TypingSession({
   const handleFinish = useCallback(async (finalWpm: number, finalAccuracy: number, finalTime: number, finalErrors: number) => {
     try {
       await saveHistory({
-        snippetId: snippet.id,
+        snippet_id: snippet.id,
         wpm: finalWpm,
         accuracy: finalAccuracy,
         time: finalTime,

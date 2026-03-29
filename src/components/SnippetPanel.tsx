@@ -34,7 +34,7 @@ export function SnippetPanel({
       const newSnippets = await generateSnippets(
         currentLanguage,
         profileDescription,
-        snippets.length
+        snippets  // Pass all existing snippets to avoid duplicates
       );
       for (const s of newSnippets) {
         await createSnippet({
@@ -47,7 +47,7 @@ export function SnippetPanel({
       onRefresh();
     } catch (err) {
       console.error('Generate failed:', err);
-      alert('Failed to generate snippets');
+      alert('Failed to generate snippets: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
     setGenerating(false);
   };
@@ -61,7 +61,7 @@ export function SnippetPanel({
     }
   };
 
-  const bestWpm = (id: string): number | null => {
+  const bestWpm = (_id: string): number | null => {
     // TODO: get from history
     return null;
   };

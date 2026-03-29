@@ -98,22 +98,60 @@ export async function getStats(): Promise<Stats> {
 export async function generateSnippets(
   language: Language,
   description: string,
-  existingCount: number
+  existingSnippets: Snippet[]
 ): Promise<Snippet[]> {
+  // Build list of existing titles to avoid duplicates
+  const existingTitles = existingSnippets
+    .filter(s => s.language === language)
+    .map(s => `- ${s.title}`)
+    .join('\n');
+
+  const avoidSection = existingTitles
+    ? `\n\nIMPORTANT - These snippets already exist, DO NOT create similar ones:\n${existingTitles}`
+    : '';
+
   const prompt = `You are a code snippet generator for a typing practice app.
 
 Language: ${language}
 About their work: ${description || 'General programming'}
+${avoidSection}
 
-Generate exactly 5 code snippets for typing practice. Each snippet should be:
-- Real, practical code that this developer would actually write
-- 8-25 lines long
-- No comments
-- Meaningful variable/function names
-- Mix of easy and hard (symbol-heavy) snippets
+Generate exactly 5 code snippets for typing practice. Requirements:
+
+1. CONTENT REQUIREMENTS:
+   - Code must be REAL, PRACTICAL, and COMMONLY USED in real projects
+   - Prioritize: frequently written code > rare code > boilerplate/init code
+   - Examples of GOOD content:
+     * Common patterns (error handling, validation, data transformation)
+     * API routes, middleware, request handlers
+     * Database queries, CRUD operations
+     * Utility functions (date formatting, string manipulation)
+     * Class/function definitions with typical logic
+     * Configuration setup, initialization code
+   - Examples of BAD content (avoid):
+     * Simple "hello world" or print statements
+     * Empty function stubs
+     * Trivial one-liners
+
+2. CODE QUALITY:
+   - 8-30 lines long
+   - Include meaningful comments explaining what the code does
+   - Comments should describe: purpose, parameters, return values, edge cases
+   - Use realistic variable/function names (not foo, bar, baz)
+   - Include type annotations where appropriate for the language
+
+3. DIFFICULTY MIX:
+   - 1 easy (simple logic, few symbols)
+   - 2 medium (moderate complexity)
+   - 2 hard (symbol-heavy, complex syntax, nested structures)
+
+4. FOR EACH SNIPPET, include in the code as comments:
+   - What this code does
+   - When/why you would use it
+   - What kind of projects typically need this
 
 Respond ONLY with a JSON array, no markdown, no backticks:
-[{"title":"short title","code":"the actual code","difficulty":"easy|medium|hard"}]`;
+[{"title":"short descriptive title","code":"the actual code with comments","difficulty":"easy|medium|hard"}]`;
 
   const key = import.meta.env.VITE_GEMINI_API_KEY;
   if (!key) {
@@ -127,7 +165,7 @@ Respond ONLY with a JSON array, no markdown, no backticks:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 4000 },
+        generationConfig: { maxOutputTokens: 8000 },
       }),
     }
   );
@@ -143,7 +181,7 @@ Respond ONLY with a JSON array, no markdown, no backticks:
     JSON.parse(text.replace(/```json|```/g, '').trim());
 
   return parsed.map((s, i) => ({
-    id: `${Date.now()}-${existingCount + i}`,
+    id: `${Date.now()}-${existingSnippets.length + i}`,
     user_id: '',
     language,
     title: s.title,
