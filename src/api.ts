@@ -116,7 +116,7 @@ Language: ${language}
 About their work: ${description || 'General programming'}
 ${avoidSection}
 
-Generate exactly 5 code snippets for typing practice. Requirements:
+Generate exactly 10 code snippets for typing practice. Requirements:
 
 1. CONTENT REQUIREMENTS:
    - Code must be REAL, PRACTICAL, and COMMONLY USED in real projects
@@ -141,9 +141,9 @@ Generate exactly 5 code snippets for typing practice. Requirements:
    - Include type annotations where appropriate for the language
 
 3. DIFFICULTY MIX:
-   - 1 easy (simple logic, few symbols)
-   - 2 medium (moderate complexity)
-   - 2 hard (symbol-heavy, complex syntax, nested structures)
+   - 2 easy (simple logic, few symbols)
+   - 4 medium (moderate complexity)
+   - 4 hard (symbol-heavy, complex syntax, nested structures)
 
 4. DESCRIPTION FIELD (separate from code):
    - purpose: What this code does in 1-2 sentences
