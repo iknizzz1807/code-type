@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Snippet, Language } from '../types';
 import { T } from '../theme';
 import { generateSnippets, createSnippet, deleteSnippet } from '../api';
+import { SnippetDescription } from './SnippetDescription';
 
 interface SnippetPanelProps {
   snippets: Snippet[];
@@ -25,6 +26,7 @@ export function SnippetPanel({
   onRefresh,
 }: SnippetPanelProps) {
   const [generating, setGenerating] = useState(false);
+  const [viewingDescription, setViewingDescription] = useState<Snippet | null>(null);
 
   const filteredSnippets = snippets.filter((s) => s.language === currentLanguage);
 
@@ -41,6 +43,7 @@ export function SnippetPanel({
           language: s.language,
           title: s.title,
           code: s.code,
+          description: s.description,
           difficulty: s.difficulty,
         });
       }
@@ -141,10 +144,31 @@ export function SnippetPanel({
                     </div>
                   )}
                 </button>
+                {s.description && (
+                  <button
+                    onClick={() => setViewingDescription(s)}
+                    style={styles.infoBtn}
+                    title="View description"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = T.surface2;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = T.surface;
+                    }}
+                  >
+                    i
+                  </button>
+                )}
                 <button
                   onClick={() => handleDelete(s.id)}
                   style={styles.deleteBtn}
                   title="Delete"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = T.error;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = T.textDim;
+                  }}
                 >
                   ×
                 </button>
@@ -152,6 +176,16 @@ export function SnippetPanel({
             );
           })}
         </div>
+      )}
+
+      {viewingDescription && (
+        <SnippetDescription
+          title={viewingDescription.title}
+          description={viewingDescription.description}
+          difficulty={viewingDescription.difficulty}
+          language={viewingDescription.language}
+          onClose={() => setViewingDescription(null)}
+        />
       )}
     </div>
   );
@@ -285,6 +319,18 @@ const styles: Record<string, React.CSSProperties> = {
     border: `1px solid ${T.border}`,
     borderRadius: '0 10px 10px 0',
     color: T.textDim,
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  },
+  infoBtn: {
+    fontFamily: T.font,
+    fontSize: 11,
+    fontWeight: 600,
+    padding: '0 12px',
+    background: T.surface,
+    border: `1px solid ${T.border}`,
+    borderRight: 'none',
+    color: T.mauve,
     cursor: 'pointer',
     transition: 'all 0.15s',
   },

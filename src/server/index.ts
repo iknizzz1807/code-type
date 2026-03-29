@@ -34,6 +34,7 @@ db.exec(`
     language TEXT NOT NULL,
     title TEXT NOT NULL,
     code TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
     difficulty TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -162,10 +163,10 @@ app.get('/api/snippets', authMiddleware, (req, res) => {
 });
 
 app.post('/api/snippets', authMiddleware, (req, res) => {
-  const { language, title, code, difficulty } = req.body;
+  const { language, title, code, description, difficulty } = req.body;
   const id = uuidv4();
 
-  db.prepare('INSERT INTO snippets (id, user_id, language, title, code, difficulty) VALUES (?, ?, ?, ?, ?, ?)').run(id, (req as any).userId, language, title, code, difficulty);
+  db.prepare('INSERT INTO snippets (id, user_id, language, title, code, description, difficulty) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, (req as any).userId, language, title, code, description || '', difficulty);
 
   res.json({ id, ...req.body });
 });

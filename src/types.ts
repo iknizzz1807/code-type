@@ -18,6 +18,7 @@ export interface Snippet {
   language: string;
   title: string;
   code: string;
+  description: string; // purpose, when to use, project types - rendered in separate UI
   difficulty: 'easy' | 'medium' | 'hard';
   created_at?: string;
 }

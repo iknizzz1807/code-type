@@ -66,7 +66,7 @@ export async function getSnippets(): Promise<Snippet[]> {
   return request<Snippet[]>('/snippets');
 }
 
-export async function createSnippet(snippet: Omit<Snippet, 'id' | 'user_id'>): Promise<Snippet> {
+export async function createSnippet(snippet: Omit<Snippet, 'id' | 'user_id' | 'created_at'>): Promise<Snippet> {
   return request<Snippet>('/snippets', {
     method: 'POST',
     body: JSON.stringify(snippet),
@@ -135,8 +135,8 @@ Generate exactly 5 code snippets for typing practice. Requirements:
 
 2. CODE QUALITY:
    - 8-30 lines long
-   - Include meaningful comments explaining what the code does
-   - Comments should describe: purpose, parameters, return values, edge cases
+   - Include ONLY NECESSARY comments in the code itself (parameter types, return values, edge cases)
+   - DO NOT include purpose/explanation in code comments - that goes in the description field
    - Use realistic variable/function names (not foo, bar, baz)
    - Include type annotations where appropriate for the language
 
@@ -145,13 +145,13 @@ Generate exactly 5 code snippets for typing practice. Requirements:
    - 2 medium (moderate complexity)
    - 2 hard (symbol-heavy, complex syntax, nested structures)
 
-4. FOR EACH SNIPPET, include in the code as comments:
-   - What this code does
-   - When/why you would use it
-   - What kind of projects typically need this
+4. DESCRIPTION FIELD (separate from code):
+   - purpose: What this code does in 1-2 sentences
+   - whenToUse: When/why you would use this pattern
+   - projectTypes: What kind of projects typically need this
 
 Respond ONLY with a JSON array, no markdown, no backticks:
-[{"title":"short descriptive title","code":"the actual code with comments","difficulty":"easy|medium|hard"}]`;
+[{"title":"short descriptive title","code":"the actual code with only necessary comments","description":{"purpose":"...","whenToUse":"...","projectTypes":"..."},"difficulty":"easy|medium|hard"}]`;
 
   const key = import.meta.env.VITE_GEMINI_API_KEY;
   if (!key) {
@@ -177,8 +177,12 @@ Respond ONLY with a JSON array, no markdown, no backticks:
   const data = await res.json();
   const text = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '';
 
-  const parsed: Array<{ title: string; code: string; difficulty: 'easy' | 'medium' | 'hard' }> =
-    JSON.parse(text.replace(/```json|```/g, '').trim());
+  const parsed: Array<{
+    title: string;
+    code: string;
+    description: { purpose: string; whenToUse: string; projectTypes: string };
+    difficulty: 'easy' | 'medium' | 'hard';
+  }> = JSON.parse(text.replace(/```json|```/g, '').trim());
 
   return parsed.map((s, i) => ({
     id: `${Date.now()}-${existingSnippets.length + i}`,
@@ -186,6 +190,7 @@ Respond ONLY with a JSON array, no markdown, no backticks:
     language,
     title: s.title,
     code: s.code.replace(/\t/g, '  '),
+    description: `**Purpose:** ${s.description.purpose}\n\n**When to use:** ${s.description.whenToUse}\n\n**Project types:** ${s.description.projectTypes}`,
     difficulty: s.difficulty,
   }));
 }
