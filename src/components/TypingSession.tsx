@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import type { Snippet, Language } from '../types';
+import type { Snippet, Language, HistoryEntry } from '../types';
 import { T, syntaxColors, withAlpha } from '../theme';
 import { tokenize } from '../tokenizer';
 import { saveHistory } from '../api';
@@ -7,6 +7,7 @@ import { saveHistory } from '../api';
 interface TypingSessionProps {
   snippet: Snippet;
   language: Language;
+  history: HistoryEntry[];
   onBack: () => void;
   onHistoryUpdate: () => void;
 }
@@ -14,6 +15,7 @@ interface TypingSessionProps {
 export function TypingSession({
   snippet,
   language,
+  history,
   onBack,
   onHistoryUpdate,
 }: TypingSessionProps) {
@@ -27,6 +29,13 @@ export function TypingSession({
   const containerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Get best result from history
+  const bestResult = useMemo(() => {
+    const snippetHistory = history.filter(h => h.snippet_id === snippet.id);
+    if (snippetHistory.length === 0) return null;
+    return snippetHistory.reduce((best, h) => h.wpm > best.wpm ? h : best, snippetHistory[0]);
+  }, [history, snippet.id]);
 
   useEffect(() => {
     rootRef.current?.focus();
@@ -273,6 +282,17 @@ export function TypingSession({
               <div style={styles.statLabel}>{s.label}</div>
             </div>
           ))}
+          {bestResult && !done && (
+            <div style={styles.bestResult}>
+              <div style={styles.bestLabel}>best</div>
+              <div style={styles.bestVals}>
+                <span style={{ color: T.green }}>{bestResult.wpm}</span>
+                <span style={{ color: T.textDim }}>wpm</span>
+                <span style={{ color: T.textDim }}>·</span>
+                <span style={{ color: T.text }}>{bestResult.accuracy.toFixed(0)}%</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Code */}
@@ -315,6 +335,11 @@ export function TypingSession({
             <div style={styles.doneMessage}>
               ✓ {wpm} wpm · {accuracy.toFixed(1)}% accuracy ·{' '}
               {(elapsed / 1000).toFixed(1)}s
+              {bestResult && (
+                <span style={styles.compareText}>
+                  {' '}({wpm > bestResult.wpm ? '🏆 new best!' : `best: ${bestResult.wpm} wpm`})
+                </span>
+              )}
             </div>
             <div style={styles.doneBtns}>
               <button onClick={restart} style={styles.practiceAgainBtn}>
@@ -486,6 +511,31 @@ const styles: Record<string, React.CSSProperties> = {
     color: T.green,
     marginBottom: 16,
     fontWeight: 600,
+  },
+  compareText: {
+    color: T.textDim,
+    fontWeight: 400,
+    fontSize: 13,
+  },
+  bestResult: {
+    marginLeft: 'auto',
+    textAlign: 'right',
+    paddingLeft: 16,
+    borderLeft: `1px solid ${T.border}`,
+  },
+  bestLabel: {
+    fontFamily: T.font,
+    fontSize: 9,
+    color: T.textDim,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  bestVals: {
+    fontFamily: T.font,
+    fontSize: 12,
+    display: 'flex',
+    gap: 4,
+    alignItems: 'baseline',
   },
   doneBtns: {
     display: 'flex',

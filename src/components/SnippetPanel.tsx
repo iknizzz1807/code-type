@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import type { Snippet, Language } from '../types';
+import type { Snippet, Language, HistoryEntry } from '../types';
 import { T } from '../theme';
 import { generateSnippets, createSnippet, deleteSnippet } from '../api';
 import { SnippetDescription } from './SnippetDescription';
 
 interface SnippetPanelProps {
   snippets: Snippet[];
+  history: HistoryEntry[];
   currentLanguage: Language;
   profileDescription: string;
   onSelect: (snippet: Snippet) => void;
@@ -20,6 +21,7 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 export function SnippetPanel({
   snippets,
+  history,
   currentLanguage,
   profileDescription,
   onSelect,
@@ -30,13 +32,23 @@ export function SnippetPanel({
 
   const filteredSnippets = snippets.filter((s) => s.language === currentLanguage);
 
+  // Get best WPM and completion status for a snippet
+  const getSnippetStats = (snippetId: string): { bestWpm: number | null; completed: boolean; bestAccuracy: number | null } => {
+    const snippetHistory = history.filter(h => h.snippet_id === snippetId);
+    if (snippetHistory.length === 0) {
+      return { bestWpm: null, completed: false, bestAccuracy: null };
+    }
+    const best = snippetHistory.reduce((acc, h) => h.wpm > acc.wpm ? h : acc, snippetHistory[0]);
+    return { bestWpm: best.wpm, completed: true, bestAccuracy: best.accuracy };
+  };
+
   const handleGenerate = async () => {
     setGenerating(true);
     try {
       const newSnippets = await generateSnippets(
         currentLanguage,
         profileDescription,
-        snippets  // Pass all existing snippets to avoid duplicates
+        snippets
       );
       for (const s of newSnippets) {
         await createSnippet({
@@ -62,11 +74,6 @@ export function SnippetPanel({
     } catch (err) {
       console.error('Delete failed:', err);
     }
-  };
-
-  const bestWpm = (_id: string): number | null => {
-    // TODO: get from history
-    return null;
   };
 
   return (
@@ -105,24 +112,30 @@ export function SnippetPanel({
       ) : (
         <div style={styles.list}>
           {filteredSnippets.map((s) => {
-            const best = bestWpm(s.id);
+            const stats = getSnippetStats(s.id);
             return (
               <div key={s.id} style={styles.item}>
                 <button
                   onClick={() => onSelect(s)}
-                  style={styles.itemBtn}
+                  style={{
+                    ...styles.itemBtn,
+                    borderColor: stats.completed ? T.green + '66' : T.border,
+                  }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = T.accent;
                     e.currentTarget.style.background = T.surface2;
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = T.border;
+                    e.currentTarget.style.borderColor = stats.completed ? T.green + '66' : T.border;
                     e.currentTarget.style.background = T.surface;
                   }}
                 >
                   <div style={styles.itemInfo}>
                     <div style={styles.itemHeader}>
-                      <span style={styles.itemTitle}>{s.title}</span>
+                      <span style={styles.itemTitle}>
+                        {stats.completed && <span style={styles.completedIcon}>✓</span>}
+                        {s.title}
+                      </span>
                       <span
                         style={{
                           ...styles.diffBadge,
@@ -135,14 +148,13 @@ export function SnippetPanel({
                     </div>
                     <div style={styles.itemMeta}>
                       {s.code.split('\n').length} lines · {s.code.length} chars
+                      {stats.completed && (
+                        <span style={styles.completedMeta}>
+                          {' '}· Best: {stats.bestWpm} wpm ({stats.bestAccuracy?.toFixed(0)}%)
+                        </span>
+                      )}
                     </div>
                   </div>
-                  {best !== null && (
-                    <div style={styles.best}>
-                      <span style={styles.bestVal}>{best}</span>
-                      <span style={styles.bestLabel}>wpm</span>
-                    </div>
-                  )}
                 </button>
                 {s.description && (
                   <button
@@ -281,6 +293,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     color: T.text,
   },
+  completedIcon: {
+    color: T.green,
+    marginRight: 4,
+  },
   diffBadge: {
     fontFamily: T.font,
     fontSize: 9,
@@ -294,22 +310,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     color: T.textDim,
   },
-  best: {
-    textAlign: 'right',
-    marginLeft: 16,
-  },
-  bestVal: {
-    display: 'block',
-    fontFamily: T.font,
-    fontSize: 18,
-    fontWeight: 700,
-    color: T.accent,
-  },
-  bestLabel: {
-    display: 'block',
-    fontFamily: T.font,
-    fontSize: 9,
-    color: T.textDim,
+  completedMeta: {
+    color: T.green,
   },
   deleteBtn: {
     fontFamily: T.font,

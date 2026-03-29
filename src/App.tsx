@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { User, LanguageProfile, Snippet, Stats, Language } from './types';
+import type { User, LanguageProfile, Snippet, Stats, Language, HistoryEntry } from './types';
 import { T } from './theme';
 import { Auth } from './components/Auth';
 import { Sidebar } from './components/Sidebar';
@@ -11,6 +11,7 @@ import {
   getProfiles,
   getSnippets,
   getStats,
+  getHistory,
   logout as apiLogout,
 } from './api';
 
@@ -22,6 +23,7 @@ export default function App() {
   const [profiles, setProfiles] = useState<LanguageProfile[]>([]);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [currentLanguage, setCurrentLanguage] = useState<Language>('Python');
   const [activeSnippet, setActiveSnippet] = useState<Snippet | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -31,16 +33,18 @@ export default function App() {
   // Load initial data
   const loadData = useCallback(async () => {
     try {
-      const [userData, profilesData, snippetsData, statsData] = await Promise.all([
+      const [userData, profilesData, snippetsData, statsData, historyData] = await Promise.all([
         getCurrentUser(),
         getProfiles(),
         getSnippets(),
         getStats(),
+        getHistory(),
       ]);
       setUser(userData);
       setProfiles(profilesData);
       setSnippets(snippetsData);
       setStats(statsData);
+      setHistory(historyData);
       setView('main');
     } catch {
       // Not logged in
@@ -56,12 +60,14 @@ export default function App() {
 
   const refreshData = useCallback(async () => {
     try {
-      const [snippetsData, statsData] = await Promise.all([
+      const [snippetsData, statsData, historyData] = await Promise.all([
         getSnippets(),
         getStats(),
+        getHistory(),
       ]);
       setSnippets(snippetsData);
       setStats(statsData);
+      setHistory(historyData);
     } catch (err) {
       console.error('Failed to refresh:', err);
     }
@@ -117,6 +123,7 @@ export default function App() {
         <TypingSession
           snippet={activeSnippet}
           language={currentLanguage}
+          history={history}
           onBack={() => {
             setActiveSnippet(null);
             setView('main');
@@ -145,6 +152,7 @@ export default function App() {
       <main style={styles.main}>
         <SnippetPanel
           snippets={snippets}
+          history={history}
           currentLanguage={currentLanguage}
           profileDescription={getProfileDescription(currentLanguage)}
           onSelect={(s) => {

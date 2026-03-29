@@ -190,10 +190,10 @@ app.get('/api/history', authMiddleware, (req, res) => {
 });
 
 app.post('/api/history', authMiddleware, (req, res) => {
-  const { snippetId, wpm, accuracy, time, errors } = req.body;
+  const { snippet_id, wpm, accuracy, time, errors } = req.body;
   const id = uuidv4();
 
-  db.prepare('INSERT INTO history (id, user_id, snippet_id, wpm, accuracy, time, errors) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, (req as any).userId, snippetId, wpm, accuracy, time, errors);
+  db.prepare('INSERT INTO history (id, user_id, snippet_id, wpm, accuracy, time, errors) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, (req as any).userId, snippet_id, wpm, accuracy, time, errors);
 
   res.json({ id, ...req.body });
 });
