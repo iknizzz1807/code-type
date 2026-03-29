@@ -1,80 +1,94 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Profile, Snippet, HistoryEntry, Screen } from './types';
-import { ProfileSetup } from './components/ProfileSetup';
-import { SnippetList } from './components/SnippetList';
-import { TypingSession } from './components/TypingSession';
-import { safeGet, safeSet, STORAGE_KEYS } from './storage';
-import { generateSnippets } from './api';
+import type { User, LanguageProfile, Snippet, Stats, Language } from './types';
 import { T } from './theme';
+import { Auth } from './components/Auth';
+import { Sidebar } from './components/Sidebar';
+import { Settings } from './components/Settings';
+import { SnippetPanel } from './components/SnippetPanel';
+import { TypingSession } from './components/TypingSession';
+import {
+  getCurrentUser,
+  getProfiles,
+  getSnippets,
+  getHistory,
+  getStats,
+  login as apiLogin,
+  logout as apiLogout,
+} from './api';
+import { LANGUAGES } from './types';
+
+type View = 'auth' | 'main' | 'typing';
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('loading');
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [view, setView] = useState<View>('auth');
+  const [user, setUser] = useState<User | null>(null);
+  const [profiles, setProfiles] = useState<LanguageProfile[]>([]);
   const [snippets, setSnippets] = useState<Snippet[]>([]);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [currentLanguage, setCurrentLanguage] = useState<Language>('Python');
   const [activeSnippet, setActiveSnippet] = useState<Snippet | null>(null);
-  const [generating, setGenerating] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load initial data
+  const loadData = useCallback(async () => {
+    try {
+      const [userData, profilesData, snippetsData, historyData, statsData] = await Promise.all([
+        getCurrentUser(),
+        getProfiles(),
+        getSnippets(),
+        getHistory(),
+        getStats(),
+      ]);
+      setUser(userData);
+      setProfiles(profilesData);
+      setSnippets(snippetsData);
+      setStats(statsData);
+      setView('main');
+    } catch {
+      // Not logged in
+      setView('auth');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    (async () => {
-      const p = await safeGet<Profile>(STORAGE_KEYS.profile);
-      const s = await safeGet<Snippet[]>(STORAGE_KEYS.snippets);
-      const h = await safeGet<HistoryEntry[]>(STORAGE_KEYS.history);
-      setProfile(p);
-      setSnippets(s || []);
-      setHistory(h || []);
-      setScreen(p ? 'list' : 'profile');
-    })();
-  }, []);
+    loadData();
+  }, [loadData]);
 
-  const saveProfile = useCallback(async (p: Profile) => {
-    setProfile(p);
-    await safeSet(STORAGE_KEYS.profile, p);
-    setScreen('list');
-  }, []);
-
-  const handleGenerateSnippets = useCallback(async () => {
-    const p = profile;
-    if (!p) return;
-    setGenerating(true);
+  const refreshData = useCallback(async () => {
     try {
-      const newSnippets = await generateSnippets(p, snippets.length);
-      const all = [...snippets, ...newSnippets];
-      setSnippets(all);
-      await safeSet(STORAGE_KEYS.snippets, all);
-    } catch (e) {
-      console.error('Generate failed:', e);
-      alert('Failed to generate snippets. Please check your API key.');
+      const [snippetsData, statsData] = await Promise.all([
+        getSnippets(),
+        getStats(),
+      ]);
+      setSnippets(snippetsData);
+      setStats(statsData);
+    } catch (err) {
+      console.error('Failed to refresh:', err);
     }
-    setGenerating(false);
-  }, [profile, snippets]);
+  }, []);
 
-  const handleFinish = useCallback(
-    async (result: Omit<HistoryEntry, 'snippetId' | 'snippetTitle' | 'date'>) => {
-      if (!activeSnippet) return;
-      const entry: HistoryEntry = {
-        snippetId: activeSnippet.id,
-        snippetTitle: activeSnippet.title,
-        ...result,
-        date: new Date().toISOString(),
-      };
-      const newHistory = [...history, entry];
-      setHistory(newHistory);
-      await safeSet(STORAGE_KEYS.history, newHistory);
-    },
-    [activeSnippet, history]
-  );
+  const handleLogin = useCallback(async (token: string) => {
+    await loadData();
+  }, [loadData]);
 
-  const deleteSnippet = useCallback(
-    async (id: string) => {
-      const filtered = snippets.filter((s) => s.id !== id);
-      setSnippets(filtered);
-      await safeSet(STORAGE_KEYS.snippets, filtered);
-    },
-    [snippets]
-  );
+  const handleLogout = useCallback(async () => {
+    try {
+      await apiLogout();
+    } catch {}
+    localStorage.removeItem('token');
+    setUser(null);
+    setView('auth');
+  }, []);
 
-  if (screen === 'loading') {
+  const getProfileDescription = (lang: Language): string => {
+    return profiles.find((p) => p.language === lang)?.description || '';
+  };
+
+  if (loading) {
     return (
       <div style={styles.loading}>
         <div style={styles.loadingText}>loading...</div>
@@ -82,35 +96,80 @@ export default function App() {
     );
   }
 
-  if (screen === 'profile') {
-    return <ProfileSetup onSave={saveProfile} initial={profile} />;
+  if (view === 'auth') {
+    return <Auth onLogin={handleLogin} />;
   }
 
-  if (screen === 'typing' && activeSnippet) {
+  if (view === 'typing' && activeSnippet) {
     return (
-      <TypingSession
-        snippet={activeSnippet}
-        language={profile?.language || 'Python'}
-        onBack={() => setScreen('list')}
-        onFinish={handleFinish}
-      />
+      <div style={styles.layout}>
+        <Sidebar
+          user={user!}
+          profiles={profiles}
+          stats={stats}
+          currentLanguage={currentLanguage}
+          onLanguageChange={(lang) => {
+            setCurrentLanguage(lang);
+            setActiveSnippet(null);
+            setView('main');
+          }}
+          onOpenSettings={() => setShowSettings(true)}
+          onLogout={handleLogout}
+          collapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+        <TypingSession
+          snippet={activeSnippet}
+          language={currentLanguage}
+          onBack={() => {
+            setActiveSnippet(null);
+            setView('main');
+            refreshData();
+          }}
+          onHistoryUpdate={refreshData}
+        />
+      </div>
     );
   }
 
   return (
-    <SnippetList
-      snippets={snippets}
-      history={history}
-      profile={profile!}
-      generating={generating}
-      onSelect={(s) => {
-        setActiveSnippet(s);
-        setScreen('typing');
-      }}
-      onGenerate={handleGenerateSnippets}
-      onBack={() => setScreen('profile')}
-      onDelete={deleteSnippet}
-    />
+    <div style={styles.layout}>
+      <Sidebar
+        user={user!}
+        profiles={profiles}
+        stats={stats}
+        currentLanguage={currentLanguage}
+        onLanguageChange={setCurrentLanguage}
+        onOpenSettings={() => setShowSettings(true)}
+        onLogout={handleLogout}
+        collapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
+
+      <main style={styles.main}>
+        <SnippetPanel
+          snippets={snippets}
+          currentLanguage={currentLanguage}
+          profileDescription={getProfileDescription(currentLanguage)}
+          onSelect={(s) => {
+            setActiveSnippet(s);
+            setView('typing');
+          }}
+          onRefresh={refreshData}
+        />
+      </main>
+
+      {showSettings && (
+        <Settings
+          profiles={profiles}
+          onClose={() => setShowSettings(false)}
+          onProfilesUpdate={async () => {
+            const p = await getProfiles();
+            setProfiles(p);
+          }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -125,5 +184,17 @@ const styles: Record<string, React.CSSProperties> = {
   loadingText: {
     fontFamily: T.font,
     color: T.textDim,
+  },
+  layout: {
+    display: 'flex',
+    minHeight: '100vh',
+    background: T.bg,
+  },
+  main: {
+    flex: 1,
+    padding: 24,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
   },
 };

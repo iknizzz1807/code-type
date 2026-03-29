@@ -1,14 +1,111 @@
-// API utilities for generating snippets using Gemini
-import type { Profile, Snippet } from "./types";
+// API client
+import type { User, LanguageProfile, Snippet, HistoryEntry, Stats, Language } from './types';
 
-const buildPrompt = (profile: Profile, count = 5): string =>
-  `You are a code snippet generator for a typing practice app.
+const API_BASE = '/api';
 
-User profile:
-- Language: ${profile.language}
-- About their work: ${profile.description}
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = localStorage.getItem('token');
 
-Generate exactly ${count} code snippets for typing practice. Each snippet should be:
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `HTTP ${res.status}`);
+  }
+
+  return res.json();
+}
+
+// Auth
+export async function register(username: string, password: string): Promise<void> {
+  await request('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+export async function login(username: string, password: string): Promise<{ token: string; userId: string }> {
+  const result = await request<{ token: string; userId: string }>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+  localStorage.setItem('token', result.token);
+  return result;
+}
+
+export async function logout(): Promise<void> {
+  await request('/auth/logout', { method: 'POST' });
+  localStorage.removeItem('token');
+}
+
+export async function getCurrentUser(): Promise<User> {
+  return request<User>('/auth/me');
+}
+
+// Profiles
+export async function getProfiles(): Promise<LanguageProfile[]> {
+  return request<LanguageProfile[]>('/profiles');
+}
+
+export async function updateProfile(language: Language, description: string): Promise<void> {
+  await request(`/profiles/${language}`, {
+    method: 'PUT',
+    body: JSON.stringify({ description }),
+  });
+}
+
+// Snippets
+export async function getSnippets(): Promise<Snippet[]> {
+  return request<Snippet[]>('/snippets');
+}
+
+export async function createSnippet(snippet: Omit<Snippet, 'id' | 'user_id'>): Promise<Snippet> {
+  return request<Snippet>('/snippets', {
+    method: 'POST',
+    body: JSON.stringify(snippet),
+  });
+}
+
+export async function deleteSnippet(id: string): Promise<void> {
+  await request(`/snippets/${id}`, { method: 'DELETE' });
+}
+
+// History
+export async function getHistory(): Promise<HistoryEntry[]> {
+  return request<HistoryEntry[]>('/history');
+}
+
+export async function saveHistory(entry: Omit<HistoryEntry, 'id' | 'user_id' | 'created_at'>): Promise<void> {
+  await request('/history', {
+    method: 'POST',
+    body: JSON.stringify(entry),
+  });
+}
+
+// Stats
+export async function getStats(): Promise<Stats> {
+  return request<Stats>('/stats');
+}
+
+// Generate snippets with Gemini
+export async function generateSnippets(
+  language: Language,
+  description: string,
+  existingCount: number
+): Promise<Snippet[]> {
+  const prompt = `You are a code snippet generator for a typing practice app.
+
+Language: ${language}
+About their work: ${description || 'General programming'}
+
+Generate exactly 5 code snippets for typing practice. Each snippet should be:
 - Real, practical code that this developer would actually write
 - 8-25 lines long
 - No comments
@@ -18,80 +115,39 @@ Generate exactly ${count} code snippets for typing practice. Each snippet should
 Respond ONLY with a JSON array, no markdown, no backticks:
 [{"title":"short title","code":"the actual code","difficulty":"easy|medium|hard"}]`;
 
-interface RawSnippet {
-  title: string;
-  code: string;
-  difficulty: "easy" | "medium" | "hard";
-}
-
-interface GeminiResponse {
-  candidates?: {
-    content?: {
-      parts?: { text?: string }[];
-    };
-  }[];
-  error?: {
-    message: string;
-  };
-}
-
-export async function generateSnippets(
-  profile: Profile,
-  existingCount: number,
-  apiKey?: string,
-): Promise<Snippet[]> {
-  const key = apiKey || import.meta.env.VITE_GEMINI_API_KEY;
-
+  const key = import.meta.env.VITE_GEMINI_API_KEY;
   if (!key) {
-    throw new Error("API key not configured");
+    throw new Error('Gemini API key not configured');
   }
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
     {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: buildPrompt(profile, 5) }],
-          },
-        ],
-        generationConfig: {
-          maxOutputTokens: 4000,
-        },
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 4000 },
       }),
-    },
+    }
   );
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(`API error: ${res.status} - ${JSON.stringify(error)}`);
+    throw new Error(`Gemini API error: ${res.status}`);
   }
 
-  const data: GeminiResponse = await res.json();
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '';
 
-  if (data.error) {
-    throw new Error(data.error.message);
-  }
-
-  const text =
-    data.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ||
-    "";
-
-  if (!text) {
-    throw new Error("Empty response from Gemini");
-  }
-
-  const parsed: RawSnippet[] = JSON.parse(
-    text.replace(/```json|```/g, "").trim(),
-  );
+  const parsed: Array<{ title: string; code: string; difficulty: 'easy' | 'medium' | 'hard' }> =
+    JSON.parse(text.replace(/```json|```/g, '').trim());
 
   return parsed.map((s, i) => ({
-    ...s,
     id: `${Date.now()}-${existingCount + i}`,
-    code: s.code.replace(/\t/g, "  "),
+    user_id: '',
+    language,
+    title: s.title,
+    code: s.code.replace(/\t/g, '  '),
+    difficulty: s.difficulty,
   }));
 }

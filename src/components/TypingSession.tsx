@@ -1,20 +1,21 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import type { Snippet, HistoryEntry } from '../types';
+import type { Snippet, Language } from '../types';
 import { T, syntaxColors, withAlpha } from '../theme';
 import { tokenize } from '../tokenizer';
+import { saveHistory } from '../api';
 
 interface TypingSessionProps {
   snippet: Snippet;
-  language: string;
+  language: Language;
   onBack: () => void;
-  onFinish: (result: Omit<HistoryEntry, 'snippetId' | 'snippetTitle' | 'date'>) => void;
+  onHistoryUpdate: () => void;
 }
 
 export function TypingSession({
   snippet,
   language,
   onBack,
-  onFinish,
+  onHistoryUpdate,
 }: TypingSessionProps) {
   const target = snippet.code;
   const [input, setInput] = useState('');
@@ -61,6 +62,21 @@ export function TypingSession({
     return colors;
   }, [tokens]);
 
+  const handleFinish = useCallback(async (finalWpm: number, finalAccuracy: number, finalTime: number, finalErrors: number) => {
+    try {
+      await saveHistory({
+        snippetId: snippet.id,
+        wpm: finalWpm,
+        accuracy: finalAccuracy,
+        time: finalTime,
+        errors: finalErrors,
+      });
+      onHistoryUpdate();
+    } catch (err) {
+      console.error('Failed to save history:', err);
+    }
+  }, [snippet.id, onHistoryUpdate]);
+
   const handleKey = useCallback(
     (e: React.KeyboardEvent) => {
       if (done) return;
@@ -105,17 +121,15 @@ export function TypingSession({
         const finalElapsed = Date.now() - newStartTime;
         const totalKeystrokes = keystrokes + char.length;
         const totalErrors = errors + newErrors;
-        onFinish({
-          wpm: Math.round((target.length / 5) / (finalElapsed / 60000)),
-          accuracy: parseFloat(
-            (((totalKeystrokes - totalErrors) / totalKeystrokes) * 100).toFixed(1)
-          ),
-          time: finalElapsed,
-          errors: totalErrors,
-        });
+        handleFinish(
+          Math.round((target.length / 5) / (finalElapsed / 60000)),
+          parseFloat((((totalKeystrokes - totalErrors) / totalKeystrokes) * 100).toFixed(1)),
+          finalElapsed,
+          totalErrors
+        );
       }
     },
-    [done, startTime, input, target, keystrokes, errors, onBack, onFinish]
+    [done, startTime, input, target, keystrokes, errors, onBack, handleFinish]
   );
 
   const restart = useCallback(() => {
@@ -319,13 +333,17 @@ export function TypingSession({
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
-    minHeight: '100vh',
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
     background: T.bg,
     padding: 24,
     outline: 'none',
+    overflow: 'auto',
   },
   content: {
     maxWidth: 740,
+    width: '100%',
     margin: '0 auto',
   },
   header: {
@@ -427,8 +445,8 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'pre',
     overflowX: 'auto',
     overflowY: 'auto',
-    maxHeight: '58vh',
-    border: `1px solid`,
+    maxHeight: '55vh',
+    border: '1px solid',
     tabSize: 2,
     transition: 'border-color 0.3s',
     display: 'flex',

@@ -99,7 +99,7 @@ app.post('/api/auth/register', async (req, res) => {
   db.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)').run(id, username, passwordHash);
 
   // Create default profiles for all languages
-  const languages = ['Python', 'Rust', 'TypeScript', 'Go', 'Java', 'C++', 'C#', 'Ruby', 'PHP', 'Swift', 'Kotlin', 'Zig'];
+  const languages = ['Python', 'Rust', 'TypeScript', 'Go', 'C++', 'Zig'];
   const insertProfile = db.prepare('INSERT INTO profiles (id, user_id, language, description) VALUES (?, ?, ?, ?)');
   for (const lang of languages) {
     insertProfile.run(uuidv4(), id, lang, '');
