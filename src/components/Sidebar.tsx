@@ -131,6 +131,8 @@ export function Sidebar({
 const styles: Record<string, React.CSSProperties> = {
   sidebar: {
     height: '100vh',
+    position: 'sticky',
+    top: 0,
     background: T.surface,
     borderRight: `1px solid ${T.border}`,
     display: 'flex',
@@ -274,8 +276,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   actionBtn: {
     fontFamily: T.font,
-    fontSize: 11,
-    padding: '6px 10px',
+    fontSize: 13,
+    padding: '8px 12px',
     background: 'none',
     border: 'none',
     color: T.textDim,
@@ -294,13 +296,13 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   iconBtn: {
-    width: 32,
-    height: 32,
-    margin: '3px auto',
+    width: 36,
+    height: 36,
+    margin: '4px auto',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 14,
+    fontSize: 18,
     background: 'none',
     border: 'none',
     borderRadius: 6,

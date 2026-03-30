@@ -141,7 +141,6 @@ function LanguageRoute({
   stats,
   history,
   sidebarCollapsed,
-  onLanguageChange,
   onToggleSidebar,
   onOpenSettings,
   onLogout,
@@ -154,7 +153,6 @@ function LanguageRoute({
   stats: Stats | null;
   history: HistoryEntry[];
   sidebarCollapsed: boolean;
-  onLanguageChange: (lang: Language) => void;
   onToggleSidebar: () => void;
   onOpenSettings: () => void;
   onLogout: () => void;
@@ -164,14 +162,20 @@ function LanguageRoute({
   const { language } = useParams<{ language: string }>();
   const navigate = useNavigate();
 
-  // Validate language
-  const validLanguage = LANGUAGES.includes(language as Language)
-    ? (language as Language)
-    : 'Python';
+  // Normalize language from URL (e.g., "python" -> "Python", "c++" -> "C++")
+  const normalizeLanguage = (lang: string | undefined): Language => {
+    if (!lang) return 'Python';
+    const lower = lang.toLowerCase();
+    // Handle special cases
+    if (lower === 'c++') return 'C++';
+    if (lower === 'c') return 'C';
+    if (lower === 'typescript') return 'TypeScript';
+    // Capitalize first letter for others
+    const capitalized = lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
+    return LANGUAGES.includes(capitalized as Language) ? (capitalized as Language) : 'Python';
+  };
 
-  useEffect(() => {
-    onLanguageChange(validLanguage);
-  }, [validLanguage, onLanguageChange]);
+  const validLanguage = normalizeLanguage(language);
 
   return (
     <MainView
@@ -183,7 +187,10 @@ function LanguageRoute({
       currentLanguage={validLanguage}
       sidebarCollapsed={sidebarCollapsed}
       onSelectSnippet={(s) => onSelectSnippet(s, validLanguage)}
-      onLanguageChange={(lang) => navigate(`/${lang.toLowerCase()}`)}
+      onLanguageChange={(lang) => {
+        // Navigate to the new language route
+        navigate(`/${lang.toLowerCase()}`, { replace: true });
+      }}
       onToggleSidebar={onToggleSidebar}
       onOpenSettings={onOpenSettings}
       onLogout={onLogout}
@@ -223,6 +230,10 @@ function TypingRoute({
 
   const normalizeLanguage = (lang: string | undefined): Language => {
     if (!lang) return 'Python';
+    const lower = lang.toLowerCase();
+    if (lower === 'c++') return 'C++';
+    if (lower === 'c') return 'C';
+    if (lower === 'typescript') return 'TypeScript';
     const capitalized = lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
     return LANGUAGES.includes(capitalized as Language) ? (capitalized as Language) : 'Python';
   };
@@ -352,7 +363,6 @@ export default function App() {
               stats={stats}
               history={history}
               sidebarCollapsed={sidebarCollapsed}
-              onLanguageChange={() => {}}
               onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
               onOpenSettings={() => setShowSettings(true)}
               onLogout={handleLogout}
