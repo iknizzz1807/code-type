@@ -1,22 +1,29 @@
 // API client
-import type { User, LanguageProfile, Snippet, HistoryEntry, Stats, Language } from './types';
+import type {
+  User,
+  LanguageProfile,
+  Snippet,
+  HistoryEntry,
+  Stats,
+  Language,
+} from "./types";
 
-const API_BASE = '/api';
+const API_BASE = "/api";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   });
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+    const error = await res.json().catch(() => ({ error: "Unknown error" }));
     throw new Error(error.error || `HTTP ${res.status}`);
   }
 
@@ -24,96 +31,112 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 // Auth
-export async function register(username: string, password: string): Promise<void> {
-  await request('/auth/register', {
-    method: 'POST',
+export async function register(
+  username: string,
+  password: string,
+): Promise<void> {
+  await request("/auth/register", {
+    method: "POST",
     body: JSON.stringify({ username, password }),
   });
 }
 
-export async function login(username: string, password: string): Promise<{ token: string; userId: string }> {
-  const result = await request<{ token: string; userId: string }>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ username, password }),
-  });
-  localStorage.setItem('token', result.token);
+export async function login(
+  username: string,
+  password: string,
+): Promise<{ token: string; userId: string }> {
+  const result = await request<{ token: string; userId: string }>(
+    "/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    },
+  );
+  localStorage.setItem("token", result.token);
   return result;
 }
 
 export async function logout(): Promise<void> {
-  await request('/auth/logout', { method: 'POST' });
-  localStorage.removeItem('token');
+  await request("/auth/logout", { method: "POST" });
+  localStorage.removeItem("token");
 }
 
 export async function getCurrentUser(): Promise<User> {
-  return request<User>('/auth/me');
+  return request<User>("/auth/me");
 }
 
 // Profiles
 export async function getProfiles(): Promise<LanguageProfile[]> {
-  return request<LanguageProfile[]>('/profiles');
+  return request<LanguageProfile[]>("/profiles");
 }
 
-export async function updateProfile(language: Language, description: string): Promise<void> {
+export async function updateProfile(
+  language: Language,
+  description: string,
+): Promise<void> {
   await request(`/profiles/${language}`, {
-    method: 'PUT',
+    method: "PUT",
     body: JSON.stringify({ description }),
   });
 }
 
 // Snippets
 export async function getSnippets(): Promise<Snippet[]> {
-  return request<Snippet[]>('/snippets');
+  return request<Snippet[]>("/snippets");
 }
 
-export async function createSnippet(snippet: Omit<Snippet, 'id' | 'user_id' | 'created_at'>): Promise<Snippet> {
-  return request<Snippet>('/snippets', {
-    method: 'POST',
+export async function createSnippet(
+  snippet: Omit<Snippet, "id" | "user_id" | "created_at">,
+): Promise<Snippet> {
+  return request<Snippet>("/snippets", {
+    method: "POST",
     body: JSON.stringify(snippet),
   });
 }
 
 export async function deleteSnippet(id: string): Promise<void> {
-  await request(`/snippets/${id}`, { method: 'DELETE' });
+  await request(`/snippets/${id}`, { method: "DELETE" });
 }
 
 // History
 export async function getHistory(): Promise<HistoryEntry[]> {
-  return request<HistoryEntry[]>('/history');
+  return request<HistoryEntry[]>("/history");
 }
 
-export async function saveHistory(entry: Omit<HistoryEntry, 'id' | 'user_id' | 'created_at'>): Promise<void> {
-  await request('/history', {
-    method: 'POST',
+export async function saveHistory(
+  entry: Omit<HistoryEntry, "id" | "user_id" | "created_at">,
+): Promise<void> {
+  await request("/history", {
+    method: "POST",
     body: JSON.stringify(entry),
   });
 }
 
 // Stats
 export async function getStats(): Promise<Stats> {
-  return request<Stats>('/stats');
+  return request<Stats>("/stats");
 }
 
 // Generate snippets with Gemini
 export async function generateSnippets(
   language: Language,
   description: string,
-  existingSnippets: Snippet[]
+  existingSnippets: Snippet[],
 ): Promise<Snippet[]> {
   // Build list of existing titles to avoid duplicates
   const existingTitles = existingSnippets
-    .filter(s => s.language === language)
-    .map(s => `- ${s.title}`)
-    .join('\n');
+    .filter((s) => s.language === language)
+    .map((s) => `- ${s.title}`)
+    .join("\n");
 
   const avoidSection = existingTitles
     ? `\n\nIMPORTANT - These snippets already exist, DO NOT create similar ones:\n${existingTitles}`
-    : '';
+    : "";
 
   const prompt = `You are a code snippet generator for a typing practice app.
 
 Language: ${language}
-About their work: ${description || 'General programming'}
+About their work: ${description || "General programming"}
 ${avoidSection}
 
 Generate exactly 10 code snippets for typing practice. Requirements:
@@ -155,19 +178,19 @@ Respond ONLY with a JSON array, no markdown, no backticks:
 
   const key = import.meta.env.VITE_GEMINI_API_KEY;
   if (!key) {
-    throw new Error('Gemini API key not configured');
+    throw new Error("Gemini API key not configured");
   }
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${key}`,
     {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { maxOutputTokens: 8000 },
       }),
-    }
+    },
   );
 
   if (!res.ok) {
@@ -175,21 +198,24 @@ Respond ONLY with a JSON array, no markdown, no backticks:
   }
 
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '';
+  const text =
+    data.candidates?.[0]?.content?.parts
+      ?.map((p: { text?: string }) => p.text || "")
+      .join("") || "";
 
   const parsed: Array<{
     title: string;
     code: string;
     description: { purpose: string; whenToUse: string; projectTypes: string };
-    difficulty: 'easy' | 'medium' | 'hard';
-  }> = JSON.parse(text.replace(/```json|```/g, '').trim());
+    difficulty: "easy" | "medium" | "hard";
+  }> = JSON.parse(text.replace(/```json|```/g, "").trim());
 
   return parsed.map((s, i) => ({
     id: `${Date.now()}-${existingSnippets.length + i}`,
-    user_id: '',
+    user_id: "",
     language,
     title: s.title,
-    code: s.code.replace(/\t/g, '  '),
+    code: s.code.replace(/\t/g, "  "),
     description: `**Purpose:** ${s.description.purpose}\n\n**When to use:** ${s.description.whenToUse}\n\n**Project types:** ${s.description.projectTypes}`,
     difficulty: s.difficulty,
   }));
