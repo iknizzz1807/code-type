@@ -20,217 +20,104 @@ import {
 } from './api';
 import { LANGUAGES } from './types';
 
-type ViewMode = 'snippets' | 'tutorials';
+function normalizeLanguage(lang: string | undefined): Language {
+  if (!lang) return 'Python';
+  const lower = lang.toLowerCase();
+  if (lower === 'c++') return 'C++';
+  if (lower === 'c') return 'C';
+  if (lower === 'typescript') return 'TypeScript';
+  const capitalized = lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
+  return LANGUAGES.includes(capitalized as Language) ? (capitalized as Language) : 'Python';
+}
 
-function MainView({
-  user,
-  profiles,
-  snippets,
-  tutorials,
-  stats,
-  history,
-  currentLanguage,
-  sidebarCollapsed,
-  onSelectSnippet,
-  onStartTutorial,
-  onLanguageChange,
-  onToggleSidebar,
-  onOpenSettings,
-  onLogout,
-  onRefresh,
+// Wrapper component to handle language route
+function AppShell({
+  user, profiles, stats, currentLanguage, sidebarCollapsed,
+  onOpenSettings, onLogout, onToggleSidebar, activeTab, children,
 }: {
-  user: User;
-  profiles: LanguageProfile[];
-  snippets: Snippet[];
-  tutorials: Tutorial[];
-  stats: Stats | null;
-  history: HistoryEntry[];
-  currentLanguage: Language;
-  sidebarCollapsed: boolean;
-  onSelectSnippet: (s: Snippet) => void;
-  onStartTutorial: (id: string) => void;
-  onLanguageChange: (lang: Language) => void;
-  onToggleSidebar: () => void;
-  onOpenSettings: () => void;
-  onLogout: () => void;
-  onRefresh: () => void;
+  user: User; profiles: LanguageProfile[]; stats: Stats | null;
+  currentLanguage: Language; sidebarCollapsed: boolean;
+  onOpenSettings: () => void; onLogout: () => void;
+  onToggleSidebar: () => void; activeTab: 'snippets' | 'tutorials';
+  children: React.ReactNode;
 }) {
-  const [viewMode, setViewMode] = useState<ViewMode>('snippets');
-  const getProfileDescription = (lang: Language): string => {
-    return profiles.find((p) => p.language === lang)?.description || '';
-  };
-
+  const navigate = useNavigate();
+  const lang = currentLanguage.toLowerCase();
   return (
     <div style={styles.layout}>
       <Sidebar
-        user={user}
-        profiles={profiles}
-        stats={stats}
+        user={user} profiles={profiles} stats={stats}
         currentLanguage={currentLanguage}
-        onLanguageChange={onLanguageChange}
-        onOpenSettings={onOpenSettings}
-        onLogout={onLogout}
-        collapsed={sidebarCollapsed}
-        onToggle={onToggleSidebar}
+        onLanguageChange={(l) => navigate(`/${l.toLowerCase()}`)}
+        onOpenSettings={onOpenSettings} onLogout={onLogout}
+        collapsed={sidebarCollapsed} onToggle={onToggleSidebar}
       />
       <main style={styles.main}>
         <div style={styles.tabBar}>
           <button
-            onClick={() => setViewMode('snippets')}
-            style={{ ...styles.tab, color: viewMode === 'snippets' ? T.accent : T.textDim, borderBottomColor: viewMode === 'snippets' ? T.accent : 'transparent' }}
+            onClick={() => navigate(`/${lang}`)}
+            style={{ ...styles.tab, color: activeTab === 'snippets' ? T.accent : T.textDim, borderBottomColor: activeTab === 'snippets' ? T.accent : 'transparent' }}
           >Snippets</button>
           <button
-            onClick={() => setViewMode('tutorials')}
-            style={{ ...styles.tab, color: viewMode === 'tutorials' ? T.mauve : T.textDim, borderBottomColor: viewMode === 'tutorials' ? T.mauve : 'transparent' }}
+            onClick={() => navigate(`/${lang}/tutorials`)}
+            style={{ ...styles.tab, color: activeTab === 'tutorials' ? T.mauve : T.textDim, borderBottomColor: activeTab === 'tutorials' ? T.mauve : 'transparent' }}
           >Tutorials</button>
         </div>
-        {viewMode === 'snippets' ? (
-          <SnippetPanel
-            snippets={snippets}
-            history={history}
-            currentLanguage={currentLanguage}
-            profileDescription={getProfileDescription(currentLanguage)}
-            onSelect={onSelectSnippet}
-            onRefresh={onRefresh}
-          />
-        ) : (
-          <TutorialPanel
-            tutorials={tutorials}
-            currentLanguage={currentLanguage}
-            profileDescription={getProfileDescription(currentLanguage)}
-            onStartTutorial={onStartTutorial}
-            onRefresh={onRefresh}
-          />
-        )}
+        {children}
       </main>
     </div>
   );
 }
 
-function TypingView({
-  user,
-  profiles,
-  stats,
-  history,
-  snippet,
-  language,
-  sidebarCollapsed,
-  onLanguageChange,
-  onToggleSidebar,
-  onOpenSettings,
-  onLogout,
-  onBack,
-  onHistoryUpdate,
+function SnippetsPage({
+  user, profiles, snippets, stats, history, sidebarCollapsed,
+  onRefresh, onToggleSidebar,
+  onOpenSettings, onLogout,
 }: {
-  user: User;
-  profiles: LanguageProfile[];
-  stats: Stats | null;
-  history: HistoryEntry[];
-  snippet: Snippet;
-  language: Language;
-  sidebarCollapsed: boolean;
-  onLanguageChange: (lang: Language) => void;
-  onToggleSidebar: () => void;
-  onOpenSettings: () => void;
-  onLogout: () => void;
-  onBack: () => void;
-  onHistoryUpdate: () => void;
-}) {
-  return (
-    <div style={styles.layout}>
-      <Sidebar
-        user={user}
-        profiles={profiles}
-        stats={stats}
-        currentLanguage={language}
-        onLanguageChange={(lang) => {
-          onLanguageChange(lang);
-          onBack();
-        }}
-        onOpenSettings={onOpenSettings}
-        onLogout={onLogout}
-        collapsed={sidebarCollapsed}
-        onToggle={onToggleSidebar}
-      />
-      <TypingSession
-        snippet={snippet}
-        language={language}
-        history={history}
-        onBack={onBack}
-        onHistoryUpdate={onHistoryUpdate}
-      />
-    </div>
-  );
-}
-
-// Wrapper component to handle language route
-function LanguageRoute({
-  user,
-  profiles,
-  snippets,
-  tutorials,
-  stats,
-  history,
-  sidebarCollapsed,
-  onToggleSidebar,
-  onOpenSettings,
-  onLogout,
-  onRefresh,
-  onSelectSnippet,
-  onStartTutorial,
-}: {
-  user: User;
-  profiles: LanguageProfile[];
-  snippets: Snippet[];
-  tutorials: Tutorial[];
-  stats: Stats | null;
-  history: HistoryEntry[];
-  sidebarCollapsed: boolean;
-  onToggleSidebar: () => void;
-  onOpenSettings: () => void;
-  onLogout: () => void;
+  user: User; profiles: LanguageProfile[]; snippets: Snippet[];
+  stats: Stats | null; history: HistoryEntry[]; sidebarCollapsed: boolean;
   onRefresh: () => void;
-  onSelectSnippet: (s: Snippet, lang: Language) => void;
-  onStartTutorial: (id: string, lang: Language) => void;
+  onToggleSidebar: () => void; onOpenSettings: () => void; onLogout: () => void;
 }) {
   const { language } = useParams<{ language: string }>();
   const navigate = useNavigate();
-
-  // Normalize language from URL (e.g., "python" -> "Python", "c++" -> "C++")
-  const normalizeLanguage = (lang: string | undefined): Language => {
-    if (!lang) return 'Python';
-    const lower = lang.toLowerCase();
-    // Handle special cases
-    if (lower === 'c++') return 'C++';
-    if (lower === 'c') return 'C';
-    if (lower === 'typescript') return 'TypeScript';
-    // Capitalize first letter for others
-    const capitalized = lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
-    return LANGUAGES.includes(capitalized as Language) ? (capitalized as Language) : 'Python';
-  };
-
-  const validLanguage = normalizeLanguage(language);
-
+  const currentLanguage = normalizeLanguage(language);
+  const getProfileDescription = (lang: Language) => profiles.find((p) => p.language === lang)?.description || '';
   return (
-    <MainView
-      user={user}
-      profiles={profiles}
-      snippets={snippets}
-      tutorials={tutorials}
-      stats={stats}
-      history={history}
-      currentLanguage={validLanguage}
-      sidebarCollapsed={sidebarCollapsed}
-      onSelectSnippet={(s) => onSelectSnippet(s, validLanguage)}
-      onStartTutorial={(id) => onStartTutorial(id, validLanguage)}
-      onLanguageChange={(lang) => {
-        navigate(`/${lang.toLowerCase()}`, { replace: true });
-      }}
-      onToggleSidebar={onToggleSidebar}
-      onOpenSettings={onOpenSettings}
-      onLogout={onLogout}
-      onRefresh={onRefresh}
-    />
+    <AppShell {...{ user, profiles, stats, currentLanguage, sidebarCollapsed, onOpenSettings, onLogout, onToggleSidebar }} activeTab="snippets">
+      <SnippetPanel
+        snippets={snippets} history={history} currentLanguage={currentLanguage}
+        profileDescription={getProfileDescription(currentLanguage)}
+        onSelect={(s) => navigate(`/${currentLanguage.toLowerCase()}/typing/${s.id}`)}
+        onRefresh={onRefresh}
+      />
+    </AppShell>
+  );
+}
+
+function TutorialsPage({
+  user, profiles, tutorials, stats, sidebarCollapsed,
+  onRefresh, onToggleSidebar,
+  onOpenSettings, onLogout,
+}: {
+  user: User; profiles: LanguageProfile[]; tutorials: Tutorial[];
+  stats: Stats | null; sidebarCollapsed: boolean;
+  onRefresh: () => void;
+  onToggleSidebar: () => void; onOpenSettings: () => void; onLogout: () => void;
+}) {
+  const { language } = useParams<{ language: string }>();
+  const navigate = useNavigate();
+  const currentLanguage = normalizeLanguage(language);
+  const getProfileDescription = (lang: Language) => profiles.find((p) => p.language === lang)?.description || '';
+  return (
+    <AppShell {...{ user, profiles, stats, currentLanguage, sidebarCollapsed, onOpenSettings, onLogout, onToggleSidebar }} activeTab="tutorials">
+      <TutorialPanel
+        tutorials={tutorials} currentLanguage={currentLanguage}
+        profileDescription={getProfileDescription(currentLanguage)}
+        onStartTutorial={(id) => navigate(`/${currentLanguage.toLowerCase()}/tutorial/${id}`)}
+        onRefresh={onRefresh}
+      />
+    </AppShell>
   );
 }
 
@@ -250,6 +137,35 @@ function TutorialView({
         tutorialId={tutorialId}
         language={language}
         onBack={onBack}
+      />
+    </div>
+  );
+}
+
+function TypingView({
+  user, profiles, stats, history, snippet, language,
+  sidebarCollapsed, onLanguageChange, onToggleSidebar,
+  onOpenSettings, onLogout, onBack, onHistoryUpdate,
+}: {
+  user: User; profiles: LanguageProfile[]; stats: Stats | null;
+  history: HistoryEntry[]; snippet: Snippet; language: Language;
+  sidebarCollapsed: boolean;
+  onLanguageChange: (lang: Language) => void;
+  onToggleSidebar: () => void; onOpenSettings: () => void; onLogout: () => void;
+  onBack: () => void; onHistoryUpdate: () => void;
+}) {
+  return (
+    <div style={styles.layout}>
+      <Sidebar
+        user={user} profiles={profiles} stats={stats}
+        currentLanguage={language}
+        onLanguageChange={(lang) => { onLanguageChange(lang); onBack(); }}
+        onOpenSettings={onOpenSettings} onLogout={onLogout}
+        collapsed={sidebarCollapsed} onToggle={onToggleSidebar}
+      />
+      <TypingSession
+        snippet={snippet} language={language} history={history}
+        onBack={onBack} onHistoryUpdate={onHistoryUpdate}
       />
     </div>
   );
@@ -283,16 +199,6 @@ function TypingRoute({
 }) {
   const { language, snippetId } = useParams<{ language: string; snippetId: string }>();
   const navigate = useNavigate();
-
-  const normalizeLanguage = (lang: string | undefined): Language => {
-    if (!lang) return 'Python';
-    const lower = lang.toLowerCase();
-    if (lower === 'c++') return 'C++';
-    if (lower === 'c') return 'C';
-    if (lower === 'typescript') return 'TypeScript';
-    const capitalized = lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
-    return LANGUAGES.includes(capitalized as Language) ? (capitalized as Language) : 'Python';
-  };
 
   const validLanguage = normalizeLanguage(language);
   const snippet = snippets.find(s => s.id === snippetId);
@@ -329,16 +235,6 @@ function TutorialRoute({
 }) {
   const { language, tutorialId } = useParams<{ language: string; tutorialId: string }>();
   const navigate = useNavigate();
-
-  const normalizeLanguage = (lang: string | undefined): Language => {
-    if (!lang) return 'Python';
-    const lower = lang.toLowerCase();
-    if (lower === 'c++') return 'C++';
-    if (lower === 'c') return 'C';
-    if (lower === 'typescript') return 'TypeScript';
-    const capitalized = lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
-    return LANGUAGES.includes(capitalized as Language) ? (capitalized as Language) : 'Python';
-  };
 
   const validLanguage = normalizeLanguage(language);
 
@@ -424,21 +320,13 @@ export default function App() {
     setUser(null);
   }, []);
 
-  const handleSelectSnippet = useCallback((s: Snippet, lang: Language) => {
-    navigate(`/${lang.toLowerCase()}/typing/${s.id}`);
-  }, [navigate]);
-
-  const handleStartTutorial = useCallback((tutorialId: string, lang: Language) => {
-    navigate(`/${lang.toLowerCase()}/tutorial/${tutorialId}`);
-  }, [navigate]);
-
   const handleBackFromTyping = useCallback((lang: Language) => {
     navigate(`/${lang.toLowerCase()}`);
     refreshData();
   }, [navigate, refreshData]);
 
   const handleBackFromTutorial = useCallback((lang: Language) => {
-    navigate(`/${lang.toLowerCase()}`);
+    navigate(`/${lang.toLowerCase()}/tutorials`);
     refreshData();
   }, [navigate, refreshData]);
 
@@ -461,11 +349,10 @@ export default function App() {
           <Route
             path="/:language"
             element={
-              <LanguageRoute
+              <SnippetsPage
                 user={user}
                 profiles={profiles}
                 snippets={snippets}
-                tutorials={tutorials}
                 stats={stats}
                 history={history}
                 sidebarCollapsed={sidebarCollapsed}
@@ -473,8 +360,22 @@ export default function App() {
                 onOpenSettings={() => setShowSettings(true)}
                 onLogout={handleLogout}
                 onRefresh={refreshData}
-                onSelectSnippet={handleSelectSnippet}
-                onStartTutorial={handleStartTutorial}
+              />
+            }
+          />
+          <Route
+            path="/:language/tutorials"
+            element={
+              <TutorialsPage
+                user={user}
+                profiles={profiles}
+                tutorials={tutorials}
+                stats={stats}
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+                onOpenSettings={() => setShowSettings(true)}
+                onLogout={handleLogout}
+                onRefresh={refreshData}
               />
             }
           />
