@@ -117,7 +117,47 @@ export async function getStats(): Promise<Stats> {
   return request<Stats>("/stats");
 }
 
-// Generate snippets with Gemini
+// ─── Tutorial API ─────────────────────────────────────────────
+
+export async function createTutorialPlan(
+  language: Language,
+  profileDescription: string,
+): Promise<{ id: string } & import('./types').TutorialPlan> {
+  return request('/tutorials/plan', {
+    method: 'POST',
+    body: JSON.stringify({ language, profileDescription }),
+  });
+}
+
+export async function getTutorials(): Promise<import('./types').Tutorial[]> {
+  return request('/tutorials');
+}
+
+export async function getTutorial(id: string): Promise<import('./types').Tutorial & { parts: (import('./types').TutorialPart & { files: import('./types').TutorialFile[] })[] }> {
+  return request(`/tutorials/${id}`);
+}
+
+export async function generateNextPart(id: string): Promise<{ part: import('./types').TutorialPart; files: import('./types').TutorialFile[] }> {
+  return request(`/tutorials/${id}/generate-next-part`, { method: 'POST' });
+}
+
+export async function completeTutorialPart(
+  tutorialId: string,
+  partNumber: number,
+  data: { wpm: number; accuracy: number; time: number; errors: number; filePath?: string },
+): Promise<{ success: boolean; tutorialDone: boolean }> {
+  return request(`/tutorials/${tutorialId}/parts/${partNumber}/complete`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteTutorial(id: string): Promise<void> {
+  await request(`/tutorials/${id}`, { method: 'DELETE' });
+}
+
+// ─── Generate snippets with Gemini ────────────────────────────
+
 export async function generateSnippets(
   language: Language,
   description: string,

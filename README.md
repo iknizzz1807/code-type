@@ -9,7 +9,7 @@ Practice typing real code snippets tailored to your programming language and wor
    npm install
    ```
 
-2. Create `.env` file with your Anthropic API key:
+2. Create `.env` file with your Gemini API key:
    ```bash
    cp .env.example .env
    # Edit .env and add your API key

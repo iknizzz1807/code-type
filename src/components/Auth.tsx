@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { T } from '../theme';
+import { register, login } from '../api';
 
 interface AuthProps {
-  onLogin: (token: string) => void;
+  onLogin: () => void;
 }
 
 export function Auth({ onLogin }: AuthProps) {
@@ -19,24 +20,10 @@ export function Auth({ onLogin }: AuthProps) {
 
     try {
       if (isRegister) {
-        await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
-        });
+        await register(username, password);
       }
-
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Login failed');
-
-      localStorage.setItem('token', data.token);
-      onLogin(data.token);
+      await login(username, password);
+      onLogin();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
