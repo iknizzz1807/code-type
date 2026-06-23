@@ -9,6 +9,8 @@ import { SnippetPanel } from './components/SnippetPanel';
 import { TutorialPanel } from './components/TutorialPanel';
 import { TutorialSession } from './components/TutorialSession';
 import { TypingSession } from './components/TypingSession';
+import { GamificationPanel } from './components/GamificationPanel';
+import { Leaderboard as LeaderboardComp } from './components/Leaderboard';
 import {
   getCurrentUser,
   getProfiles,
@@ -38,7 +40,7 @@ function AppShell({
   user: User; profiles: LanguageProfile[]; stats: Stats | null;
   currentLanguage: Language; sidebarCollapsed: boolean;
   onOpenSettings: () => void; onLogout: () => void;
-  onToggleSidebar: () => void; activeTab: 'snippets' | 'tutorials';
+  onToggleSidebar: () => void; activeTab?: 'snippets' | 'tutorials';
   children: React.ReactNode;
 }) {
   const navigate = useNavigate();
@@ -51,18 +53,21 @@ function AppShell({
         onLanguageChange={(l) => navigate(`/${l.toLowerCase()}`)}
         onOpenSettings={onOpenSettings} onLogout={onLogout}
         collapsed={sidebarCollapsed} onToggle={onToggleSidebar}
+        onNavigate={(path) => navigate(path)}
       />
       <main style={styles.main}>
-        <div style={styles.tabBar}>
-          <button
-            onClick={() => navigate(`/${lang}`)}
-            style={{ ...styles.tab, color: activeTab === 'snippets' ? T.accent : T.textDim, borderBottomColor: activeTab === 'snippets' ? T.accent : 'transparent' }}
-          >Snippets</button>
-          <button
-            onClick={() => navigate(`/${lang}/tutorials`)}
-            style={{ ...styles.tab, color: activeTab === 'tutorials' ? T.mauve : T.textDim, borderBottomColor: activeTab === 'tutorials' ? T.mauve : 'transparent' }}
-          >Tutorials</button>
-        </div>
+        {activeTab ? (
+          <div style={styles.tabBar}>
+            <button
+              onClick={() => navigate(`/${lang}`)}
+              style={{ ...styles.tab, color: activeTab === 'snippets' ? T.accent : T.textDim, borderBottomColor: activeTab === 'snippets' ? T.accent : 'transparent' }}
+            >Snippets</button>
+            <button
+              onClick={() => navigate(`/${lang}/tutorials`)}
+              style={{ ...styles.tab, color: activeTab === 'tutorials' ? T.mauve : T.textDim, borderBottomColor: activeTab === 'tutorials' ? T.mauve : 'transparent' }}
+            >Tutorials</button>
+          </div>
+        ) : null}
         {children}
       </main>
     </div>
@@ -121,7 +126,40 @@ function TutorialsPage({
   );
 }
 
-// Tutorial view (no sidebar — full screen focus)
+function RankPage({
+  user, profiles, stats, sidebarCollapsed,
+  onToggleSidebar, onOpenSettings, onLogout,
+}: {
+  user: User; profiles: LanguageProfile[]; stats: Stats | null;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void; onOpenSettings: () => void; onLogout: () => void;
+}) {
+  const { language } = useParams<{ language: string }>();
+  const currentLanguage = normalizeLanguage(language);
+  return (
+    <AppShell {...{ user, profiles, stats, currentLanguage, sidebarCollapsed, onOpenSettings, onLogout, onToggleSidebar }}>
+      <GamificationPanel />
+    </AppShell>
+  );
+}
+
+function LeaderboardPage({
+  user, profiles, stats, sidebarCollapsed,
+  onToggleSidebar, onOpenSettings, onLogout,
+}: {
+  user: User; profiles: LanguageProfile[]; stats: Stats | null;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void; onOpenSettings: () => void; onLogout: () => void;
+}) {
+  const { language } = useParams<{ language: string }>();
+  const currentLanguage = normalizeLanguage(language);
+  return (
+    <AppShell {...{ user, profiles, stats, currentLanguage, sidebarCollapsed, onOpenSettings, onLogout, onToggleSidebar }}>
+      <LeaderboardComp />
+    </AppShell>
+  );
+}
+
 function TutorialView({
   language,
   tutorialId,
@@ -376,6 +414,34 @@ export default function App() {
                 onOpenSettings={() => setShowSettings(true)}
                 onLogout={handleLogout}
                 onRefresh={refreshData}
+              />
+            }
+          />
+          <Route
+            path="/:language/rank"
+            element={
+              <RankPage
+                user={user}
+                profiles={profiles}
+                stats={stats}
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+                onOpenSettings={() => setShowSettings(true)}
+                onLogout={handleLogout}
+              />
+            }
+          />
+          <Route
+            path="/:language/leaderboard"
+            element={
+              <LeaderboardPage
+                user={user}
+                profiles={profiles}
+                stats={stats}
+                sidebarCollapsed={sidebarCollapsed}
+                onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+                onOpenSettings={() => setShowSettings(true)}
+                onLogout={handleLogout}
               />
             }
           />

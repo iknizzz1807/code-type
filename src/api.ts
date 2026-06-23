@@ -260,3 +260,17 @@ Respond ONLY with a JSON array, no markdown, no backticks:
     difficulty: s.difficulty,
   }));
 }
+
+// ─── Gamification ────────────────────────────────────────────
+
+export async function getGamification(): Promise<import('./types').GamificationData> {
+  return request('/gamification');
+}
+
+export async function getLeaderboard(): Promise<import('./types').LeaderboardEntry[]> {
+  return request('/leaderboard');
+}
+
+export async function logActivity(): Promise<void> {
+  await request('/gamification/activity', { method: 'POST' });
+}

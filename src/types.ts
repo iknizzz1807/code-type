@@ -139,3 +139,32 @@ export interface GeneratedFile {
   code: string;
   language: string;
 }
+
+// Gamification types
+export interface GamificationData {
+  user_id: string;
+  total_exp: number;
+  rank: number;
+  streak_count: number;
+  last_active_date: string;
+  snippets_completed: number;
+  tutorial_files_completed: number;
+  tutorials_completed: number;
+  tags: { tag: string; earned_at: string }[];
+  language_exp: { language: string; exp: number }[];
+  rank_title: string;
+  current: number;
+  next: number;
+  needed: number;
+}
+
+export interface LeaderboardEntry {
+  username: string;
+  total_exp: number;
+  rank: number;
+  rank_title: string;
+  streak_count: number;
+  snippets_completed: number;
+  tutorial_files_completed: number;
+  tutorials_completed: number;
+}

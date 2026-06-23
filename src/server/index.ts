@@ -137,6 +137,36 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (part_id) REFERENCES tutorial_parts(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS gamification (
+    user_id TEXT PRIMARY KEY,
+    total_exp INTEGER DEFAULT 0,
+    rank INTEGER DEFAULT 1,
+    streak_count INTEGER DEFAULT 0,
+    last_active_date TEXT,
+    snippets_completed INTEGER DEFAULT 0,
+    tutorial_files_completed INTEGER DEFAULT 0,
+    tutorials_completed INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS language_exp (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    language TEXT NOT NULL,
+    exp INTEGER DEFAULT 0,
+    UNIQUE(user_id, language),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS user_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    earned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, tag),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 // Auth middleware
@@ -156,6 +186,71 @@ const authMiddleware = (req: express.Request, res: express.Response, next: expre
   (req as any).userId = session.user_id;
   next();
 };
+
+// ─── Gamification helpers ─────────────────────────────────────
+
+const RANK_TITLES = [
+  'Tay mơ', 'Tập sự', 'Gà mờ', 'Học việc', 'Nghiệp dư',
+  'Có kinh nghiệm', 'Chuyên nghiệp', 'Cao thủ', 'Lão luyện', 'Tinh anh',
+  'Bậc thầy', 'Siêu sao', 'Huyền thoại', 'Bất tử', 'Hacker lừng danh',
+  'Phù thủy bàn phím', 'Thần tốc', 'Thượng thừa', 'Vô thượng', 'Hacker tối thượng',
+];
+
+function calcRank(exp: number): number {
+  for (let r = 20; r >= 1; r--) {
+    if (exp >= 50 * r * (r - 1)) return r;
+  }
+  return 1;
+}
+
+function getExpToNextRank(exp: number): { current: number; next: number; needed: number } {
+  const r = calcRank(exp);
+  const currentThreshold = 50 * r * (r - 1);
+  const nextThreshold = r < 20 ? 50 * (r + 1) * r : Infinity;
+  return { current: exp - currentThreshold, next: nextThreshold - currentThreshold, needed: nextThreshold - exp };
+}
+
+function ensureGamification(userId: string) {
+  db.prepare('INSERT OR IGNORE INTO gamification (user_id) VALUES (?)').run(userId);
+}
+
+function updateStreak(userId: string) {
+  ensureGamification(userId);
+  const today = new Date().toISOString().split('T')[0];
+  const g = db.prepare('SELECT last_active_date, streak_count FROM gamification WHERE user_id = ?').get(userId) as any;
+  if (g.last_active_date === today) return;
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+  const isStreak = g.last_active_date === yesterday;
+  const newStreak = isStreak ? (g.streak_count || 0) + 1 : 1;
+  db.prepare('UPDATE gamification SET last_active_date = ?, streak_count = ? WHERE user_id = ?')
+    .run(today, newStreak, userId);
+}
+
+function awardExp(userId: string, amount: number) {
+  ensureGamification(userId);
+  updateStreak(userId);
+  const g = db.prepare('SELECT total_exp FROM gamification WHERE user_id = ?').get(userId) as any;
+  const newExp = (g?.total_exp || 0) + amount;
+  const newRank = calcRank(newExp);
+  db.prepare('UPDATE gamification SET total_exp = ?, rank = ? WHERE user_id = ?').run(newExp, newRank, userId);
+}
+
+function awardLanguageExp(userId: string, language: string, amount: number) {
+  db.prepare('INSERT OR IGNORE INTO language_exp (user_id, language, exp) VALUES (?, ?, 0)').run(userId, language);
+  db.prepare('UPDATE language_exp SET exp = exp + ? WHERE user_id = ? AND language = ?').run(amount, userId, language);
+}
+
+function incCounter(userId: string, field: string) {
+  ensureGamification(userId);
+  db.prepare(`UPDATE gamification SET ${field} = COALESCE(${field}, 0) + 1 WHERE user_id = ?`).run(userId);
+}
+
+function awardTags(userId: string, tags: string[]) {
+  ensureGamification(userId);
+  for (const tag of tags) {
+    db.prepare('INSERT OR IGNORE INTO user_tags (user_id, tag) VALUES (?, ?)').run(userId, tag.toLowerCase().trim());
+  }
+}
 
 // Auth routes
 app.post('/api/auth/register', async (req, res) => {
@@ -270,8 +365,19 @@ app.get('/api/history', authMiddleware, (req, res) => {
 app.post('/api/history', authMiddleware, (req, res) => {
   const { snippet_id, wpm, accuracy, time, errors } = req.body;
   const id = uuidv4();
+  const userId = (req as any).userId;
 
-  db.prepare('INSERT INTO history (id, user_id, snippet_id, wpm, accuracy, time, errors) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, (req as any).userId, snippet_id, wpm, accuracy, time, errors);
+  const existing = db.prepare('SELECT id FROM history WHERE user_id = ? AND snippet_id = ?').get(userId, snippet_id);
+  const snippet = db.prepare('SELECT * FROM snippets WHERE id = ?').get(snippet_id) as any;
+
+  if (!existing && snippet) {
+    awardExp(userId, 30);
+    awardLanguageExp(userId, snippet.language, 30);
+    awardTags(userId, [snippet.language, snippet.difficulty]);
+    incCounter(userId, 'snippets_completed');
+  }
+
+  db.prepare('INSERT INTO history (id, user_id, snippet_id, wpm, accuracy, time, errors) VALUES (?, ?, ?, ?, ?, ?, ?)').run(id, userId, snippet_id, wpm, accuracy, time, errors);
 
   res.json({ id, ...req.body });
 });
@@ -645,6 +751,21 @@ app.post('/api/tutorials/:id/parts/:partNumber/complete', authMiddleware, (req, 
 
   if (!part) { res.status(404).json({ error: 'Part not found' }); return; }
 
+  const tutorial = db.prepare('SELECT * FROM tutorials WHERE id = ?').get(req.params.id) as any;
+
+  const existing = db.prepare('SELECT id FROM tutorial_history WHERE user_id = ? AND part_id = ? AND file_path = ?')
+    .get(userId, part.id, filePath || '');
+  if (!existing && tutorial) {
+    awardExp(userId, 60);
+    awardLanguageExp(userId, tutorial.language, 60);
+    const tags = [tutorial.language, tutorial.difficulty];
+    if (tutorial.tech_stack) {
+      for (const t of tutorial.tech_stack.split(',').map((s: string) => s.trim())) tags.push(t);
+    }
+    awardTags(userId, tags);
+    incCounter(userId, 'tutorial_files_completed');
+  }
+
   // Save history
   db.prepare('INSERT INTO tutorial_history (id, user_id, tutorial_id, part_id, file_path, wpm, accuracy, time, errors) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(uuidv4(), userId, req.params.id, part.id, filePath || '', wpm, accuracy, time, errors);
@@ -656,6 +777,11 @@ app.post('/api/tutorials/:id/parts/:partNumber/complete', authMiddleware, (req, 
   const remaining = db.prepare('SELECT COUNT(*) as cnt FROM tutorial_parts WHERE tutorial_id = ? AND status != ?').get(req.params.id, 'completed') as any;
   if (remaining.cnt === 0) {
     db.prepare('UPDATE tutorials SET status = ? WHERE id = ?').run('completed', req.params.id);
+    if (tutorial) {
+      awardExp(userId, 200);
+      awardLanguageExp(userId, tutorial.language, 200);
+      incCounter(userId, 'tutorials_completed');
+    }
   }
 
   res.json({ success: true, tutorialDone: remaining.cnt === 0 });
@@ -669,6 +795,39 @@ app.delete('/api/tutorials/:id', authMiddleware, (req, res) => {
 
   db.prepare('DELETE FROM tutorials WHERE id = ?').run(req.params.id);
   res.json({ success: true });
+});
+
+// ─── Gamification & Leaderboard ──────────────────────────────
+
+app.get('/api/gamification', authMiddleware, (req, res) => {
+  const userId = (req as any).userId;
+  ensureGamification(userId);
+  const g = db.prepare('SELECT * FROM gamification WHERE user_id = ?').get(userId) as any;
+  const tags = db.prepare('SELECT tag, earned_at FROM user_tags WHERE user_id = ? ORDER BY earned_at').all(userId);
+  const langExp = db.prepare('SELECT language, exp FROM language_exp WHERE user_id = ? ORDER BY exp DESC').all(userId);
+  const rankInfo = getExpToNextRank(g?.total_exp || 0);
+  res.json({ ...g, tags, language_exp: langExp, rank_title: RANK_TITLES[(g?.rank || 1) - 1], ...rankInfo });
+});
+
+app.get('/api/leaderboard', authMiddleware, (_req, res) => {
+  const board = db.prepare(`
+    SELECT u.username, g.total_exp, g.rank, g.streak_count,
+           g.snippets_completed, g.tutorial_files_completed, g.tutorials_completed
+    FROM gamification g
+    JOIN users u ON u.id = g.user_id
+    ORDER BY g.total_exp DESC
+    LIMIT 50
+  `).all();
+  res.json(board.map((row: any) => ({
+    ...row,
+    rank_title: RANK_TITLES[(row.rank || 1) - 1],
+  })));
+});
+
+app.get('/api/gamification/activity', authMiddleware, (req, res) => {
+  const userId = (req as any).userId;
+  updateStreak(userId);
+  res.json({ ok: true });
 });
 
 const PORT = 3001;

@@ -13,6 +13,7 @@ interface SidebarProps {
   onLogout: () => void;
   collapsed: boolean;
   onToggle: () => void;
+  onNavigate?: (path: string) => void;
 }
 
 export function Sidebar({
@@ -25,6 +26,7 @@ export function Sidebar({
   onLogout,
   collapsed,
   onToggle,
+  onNavigate,
 }: SidebarProps) {
   const [showLogout, setShowLogout] = useState(false);
 
@@ -86,6 +88,16 @@ export function Sidebar({
 
           {/* Actions */}
           <div style={styles.actions}>
+            {onNavigate && (
+              <>
+                <button onClick={() => onNavigate(`/${currentLanguage.toLowerCase()}/rank`)} style={styles.actionBtn}>
+                  🏆 Rank
+                </button>
+                <button onClick={() => onNavigate(`/${currentLanguage.toLowerCase()}/leaderboard`)} style={styles.actionBtn}>
+                  📊 Leaderboard
+                </button>
+              </>
+            )}
             <button onClick={onOpenSettings} style={styles.actionBtn}>
               ⚙ Settings
             </button>
@@ -121,6 +133,12 @@ export function Sidebar({
           ))}
           <div style={styles.divider} />
           <button onClick={onOpenSettings} style={styles.iconBtn} title="Settings">⚙</button>
+          {onNavigate && (
+            <>
+              <button onClick={() => onNavigate(`/${currentLanguage.toLowerCase()}/rank`)} style={styles.iconBtn} title="Rank">🏆</button>
+              <button onClick={() => onNavigate(`/${currentLanguage.toLowerCase()}/leaderboard`)} style={styles.iconBtn} title="Leaderboard">📊</button>
+            </>
+          )}
           <button onClick={onLogout} style={styles.iconBtn} title="Logout">⏻</button>
         </div>
       )}
